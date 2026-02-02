@@ -521,6 +521,8 @@ static void usage()
 	printf("  -S, --socket ADDR:PORT | PATH   Specify source ADDR and PORT or a UNIX\n");
 	printf("            \t\tsocket PATH to use for the listening socket.\n");
 	printf("            \t\tDefault: %s\n", socket_path);
+	printf("  --port PORT\t\tListen on TCP port PORT (shorthand for -S 127.0.0.1:PORT).\n");
+	printf("            \t\tUseful for running multiple instances. Default: 27015\n");
 	printf("  -P, --pidfile PATH\tSpecify a different location for the pid file, or pass\n");
 	printf("            \t\tNONE to disable. Default: %s\n", DEFAULT_LOCKFILE);
 	printf("  -x, --exit\t\tNotify a running instance to exit if there are no devices\n");
@@ -552,6 +554,7 @@ static void parse_opts(int argc, char **argv)
 #endif
 		{"config-dir", required_argument, NULL, 'C'},
 		{"socket", required_argument, NULL, 'S'},
+		{"port", required_argument, NULL, 1000},
 		{"pidfile", required_argument, NULL, 'P'},
 		{"exit", no_argument, NULL, 'x'},
 		{"force-exit", no_argument, NULL, 'X'},
@@ -663,6 +666,24 @@ static void parse_opts(int argc, char **argv)
 				usbmuxd_log(LL_FATAL, "ERROR: fdreopen: %s", strerror(errno));
 			} else {
 				use_logfile = 1;
+			}
+			break;
+		case 1000: /* --port */
+			if (!*optarg || *optarg == '-') {
+				usbmuxd_log(LL_FATAL, "ERROR: --port requires a port number");
+				usage();
+				exit(2);
+			}
+			/* Construct listen address as 127.0.0.1:PORT */
+			{
+				char *port_addr = malloc(32);
+				if (port_addr) {
+					snprintf(port_addr, 32, "127.0.0.1:%s", optarg);
+					listen_addr = port_addr;
+				} else {
+					usbmuxd_log(LL_FATAL, "ERROR: Out of memory");
+					exit(2);
+				}
 			}
 			break;
 		default:
