@@ -22,7 +22,13 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#ifdef _WIN32
+#include <winsock2.h>
+// Windows uses WSAPoll, just use WSAPOLLFD directly
+// POLLIN and POLLOUT are already defined in winsock2.h
+#else
 #include <poll.h>
+#endif
 #include <plist/plist.h>
 
 enum fdowner {
@@ -35,7 +41,11 @@ struct fdlist {
 	int count;
 	int capacity;
 	enum fdowner *owners;
+#ifdef _WIN32
+	WSAPOLLFD *fds;
+#else
 	struct pollfd *fds;
+#endif
 };
 
 void fdlist_create(struct fdlist *list);

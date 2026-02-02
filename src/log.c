@@ -27,8 +27,36 @@
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
+
+#ifdef _WIN32
+#include <winsock2.h> // Include winsock2.h before windows.h
+#include <windows.h>
+// Windows doesn't have syslog, define stubs
+#define LOG_CRIT 2
+#define LOG_DEBUG 7
+#define LOG_PID 0
+#define openlog(ident, option, facility)
+#define closelog()
+#define vsyslog(priority, format, ap) vfprintf(stderr, format, ap)
+// Windows timeval is defined in winsock2.h, no need to redefine
+// but gettimeofday is not available
+static inline int gettimeofday(struct timeval *tv, void *tz) {
+	FILETIME ft;
+	unsigned __int64 tmpres = 0;
+	GetSystemTimeAsFileTime(&ft);
+	tmpres |= ft.dwHighDateTime;
+	tmpres <<= 32;
+	tmpres |= ft.dwLowDateTime;
+	tmpres /= 10; /* convert to microseconds */
+	tmpres -= 11644473600000000ULL; /* Unix epoch start */
+	tv->tv_sec = (long)(tmpres / 1000000UL);
+	tv->tv_usec = (long)(tmpres % 1000000UL);
+	return 0;
+}
+#else
 #include <sys/time.h>
 #include <syslog.h>
+#endif
 
 #include "log.h"
 #include "utils.h"
@@ -79,7 +107,10 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 		struct tm *tp;
 
 		gettimeofday(&ts, NULL);
-#ifdef HAVE_LOCALTIME_R
+#ifdef _WIN32
+		time_t t = (time_t)ts.tv_sec;
+		tp = localtime(&t);
+#elif defined(HAVE_LOCALTIME_R)
 		tp = localtime_r(&ts.tv_sec, &tp_);
 #else
 		tp = localtime(&ts.tv_sec);
