@@ -28,19 +28,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <windows.h>
-#define close closesocket
-#ifndef EWOULDBLOCK
-#define EWOULDBLOCK WSAEWOULDBLOCK
-#endif
-#ifndef EAGAIN
-#define EAGAIN WSAEWOULDBLOCK
-#endif
-#else
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -49,7 +36,6 @@
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#endif
 
 #include <plist/plist.h>
 #include <libimobiledevice-glue/collection.h>
@@ -130,11 +116,7 @@ int client_read(struct mux_client *client, void *buffer, uint32_t len)
 		usbmuxd_log(LL_ERROR, "Attempted to read from client %d not in CONNECTED state", client->fd);
 		return -1;
 	}
-#ifdef _WIN32
-	return recv(client->fd, (char*)buffer, len, 0);
-#else
 	return recv(client->fd, buffer, len, 0);
-#endif
 }
 
 /**
@@ -155,11 +137,7 @@ int client_write(struct mux_client *client, void *buffer, uint32_t len)
 		return -1;
 	}
 
-#ifdef _WIN32
-	sret = send(client->fd, (const char*)buffer, len, 0);
-#else
 	sret = send(client->fd, buffer, len, 0);
-#endif
 	if (sret < 0) {
 		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
 			usbmuxd_log(LL_DEBUG, "client_write: fd %d not ready for writing", client->fd);
@@ -204,29 +182,15 @@ int client_set_events(struct mux_client *client, short events)
  */
 int client_accept(int listenfd)
 {
-#ifdef _WIN32
-	struct sockaddr_in addr;
-#else
 	struct sockaddr_un addr;
-#endif
 	int cfd;
-#ifdef _WIN32
-	socklen_t len = sizeof(struct sockaddr_in);
-#else
 	socklen_t len = sizeof(struct sockaddr_un);
-#endif
 	cfd = accept(listenfd, (struct sockaddr *)&addr, &len);
 	if (cfd < 0) {
 		usbmuxd_log(LL_ERROR, "accept() failed (%s)", strerror(errno));
 		return cfd;
 	}
 
-#ifdef _WIN32
-	u_long mode = 1; // 1 to enable non-blocking socket
-	if (ioctlsocket(cfd, FIONBIO, &mode) != 0) {
-		usbmuxd_log(LL_ERROR, "ERROR: Could not set socket to non-blocking mode");
-	}
-#else
 	int flags = fcntl(cfd, F_GETFL, 0);
 	if (flags < 0) {
 		usbmuxd_log(LL_ERROR, "ERROR: Could not get socket flags!");
@@ -235,30 +199,17 @@ int client_accept(int listenfd)
 			usbmuxd_log(LL_ERROR, "ERROR: Could not set socket to non-blocking mode");
 		}
 	}
-#endif
 
 	int bufsize = 0x20000;
-#ifdef _WIN32
-	if (setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, (const char*)&bufsize, sizeof(int)) == -1) {
-#else
 	if (setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) == -1) {
-#endif
 		usbmuxd_log(LL_WARNING, "Could not set send buffer for client socket");
 	}
-#ifdef _WIN32
-	if (setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, (const char*)&bufsize, sizeof(int)) == -1) {
-#else
 	if (setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) == -1) {
-#endif
 		usbmuxd_log(LL_WARNING, "Could not set receive buffer for client socket");
 	}
 
 	int yes = 1;
-#ifdef _WIN32
-	setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (const char*)&yes, sizeof(int));
-#else
 	setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (void*)&yes, sizeof(int));
-#endif
 
 	struct mux_client *client;
 	client = malloc(sizeof(struct mux_client));

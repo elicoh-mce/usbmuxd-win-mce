@@ -32,11 +32,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-
-#ifdef _WIN32
-#include "win32compat.h"
-#include <getopt.h>
-#else
 #include <signal.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -51,7 +46,6 @@
 #include <getopt.h>
 #include <pwd.h>
 #include <grp.h>
-#endif
 
 #include "log.h"
 #include "usb.h"
